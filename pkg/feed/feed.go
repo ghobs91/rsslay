@@ -116,6 +116,11 @@ func EntryFeedToSetMetadata(pubkey string, feed *gofeed.Feed, originalUrl string
 		}
 	}
 
+	if strings.Contains(feed.Link, "bluestream.deno.dev") {
+		feed.Title = strings.ReplaceAll(feed.Title, "Bluestream (", "")
+		feed.Title = strings.ReplaceAll(feed.Title, ") (RSS Feed)", "(on Bluesky)")
+	}
+
 	var theDescription = feed.Description
 	var theFeedTitle = feed.Title
 	if strings.Contains(feed.Link, "reddit.com") {
@@ -161,7 +166,7 @@ func EntryFeedToSetMetadata(pubkey string, feed *gofeed.Feed, originalUrl string
 
 func ItemToTextNote(pubkey string, item *gofeed.Item, feed *gofeed.Feed, defaultCreatedAt time.Time, originalUrl string, maxContentLength int) nostr.Event {
 	content := ""
-	if item.Title != "" {
+	if item.Title != "" && !strings.Contains(feed.Link, "bluestream.deno.dev") {
 		content = "**" + item.Title + "**"
 	}
 
@@ -211,6 +216,10 @@ func ItemToTextNote(pubkey string, item *gofeed.Item, feed *gofeed.Feed, default
 
 		content = content + "\n\n" + theHashtag
 
+	}
+
+	if strings.Contains(feed.Link, "bluestream.deno.dev") {
+		content = description
 	}
 
 	content = html.UnescapeString(content)
