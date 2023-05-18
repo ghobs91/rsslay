@@ -116,11 +116,6 @@ func EntryFeedToSetMetadata(pubkey string, feed *gofeed.Feed, originalUrl string
 		}
 	}
 
-	if strings.Contains(feed.Link, "bluestream.deno.dev") {
-		feed.Title = strings.ReplaceAll(feed.Title, "Bluestream (", "")
-		feed.Title = strings.ReplaceAll(feed.Title, ") (RSS Feed)", "(on Bluesky)")
-	}
-
 	var theDescription = feed.Description
 	var theFeedTitle = feed.Title
 	if strings.Contains(feed.Link, "reddit.com") {
@@ -130,8 +125,13 @@ func EntryFeedToSetMetadata(pubkey string, feed *gofeed.Feed, originalUrl string
 
 		theFeedTitle = "/r/" + subredditParsePart2[0]
 	}
+
+	if strings.Contains(theFeedTitle, "Bluestream") {
+		theFeedTitle = strings.ReplaceAll(theFeedTitle, "Bluestream (", "")
+		theFeedTitle = strings.ReplaceAll(theFeedTitle, ") (RSS Feed)", "(on Bluesky)")
+	}
 	metadata := map[string]string{
-		"name":  theFeedTitle + " (RSS Feed)",
+		"name":  theFeedTitle,
 		"about": theDescription + "\n\n" + feed.Link,
 	}
 
