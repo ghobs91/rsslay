@@ -14,8 +14,10 @@ import (
 	"github.com/mmcdole/gofeed"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/piraces/rsslay/pkg/converter"
+	"github.com/piraces/rsslay/pkg/custom_cache"
 	"github.com/piraces/rsslay/pkg/helpers"
-	"github.com/rif/cache2go"
+	"github.com/piraces/rsslay/pkg/metrics"
+	"github.com/prometheus/client_golang/prometheus"
 	"html"
 	"log"
 	"net/http"
@@ -24,9 +26,8 @@ import (
 )
 
 var (
-	fp        = gofeed.NewParser()
-	feedCache = cache2go.New(512, time.Minute*19)
-	client    = &http.Client{
+	fp     = gofeed.NewParser()
+	client = &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= 2 {
 				return errors.New("stopped after 2 redirects")
@@ -87,9 +88,23 @@ func GetFeedURL(url string) string {
 }
 
 func ParseFeed(url string) (*gofeed.Feed, error) {
-	if feed, ok := feedCache.Get(url); ok {
-		return feed.(*gofeed.Feed), nil
+	feedString, err := custom_cache.Get(url)
+	if err == nil {
+		metrics.CacheHits.Inc()
+
+		var feed gofeed.Feed
+		err := json.Unmarshal([]byte(feedString), &feed)
+		if err != nil {
+			log.Printf("[ERROR] failure to parse cache stored feed: %v", err)
+			metrics.AppErrors.With(prometheus.Labels{"type": "CACHE_PARSE"}).Inc()
+		} else {
+			return &feed, nil
+		}
+	} else {
+		log.Printf("[DEBUG] entry not found in cache: %v", err)
 	}
+
+	metrics.CacheMiss.Inc()
 	fp.RSSTranslator = NewCustomTranslator()
 	feed, err := fp.ParseURL(url)
 	if err != nil {
@@ -100,7 +115,16 @@ func ParseFeed(url string) (*gofeed.Feed, error) {
 	for i := range feed.Items {
 		feed.Items[i].Content = ""
 	}
-	feedCache.Set(url, feed)
+
+	marshal, err := json.Marshal(feed)
+	if err == nil {
+		err = custom_cache.Set(url, string(marshal))
+	}
+
+	if err != nil {
+		log.Printf("[ERROR] failure to store into cache feed: %v", err)
+		metrics.AppErrors.With(prometheus.Labels{"type": "CACHE_SET"}).Inc()
+	}
 
 	return feed, nil
 }
@@ -111,7 +135,10 @@ func EntryFeedToSetMetadata(pubkey string, feed *gofeed.Feed, originalUrl string
 		if strings.HasPrefix(originalUrl, "https://") {
 			feed.Description = strings.ReplaceAll(feed.Description, "http://", "https://")
 			feed.Title = strings.ReplaceAll(feed.Title, "http://", "https://")
-			feed.Image.URL = strings.ReplaceAll(feed.Image.URL, "http://", "https://")
+			if feed.Image != nil {
+				feed.Image.URL = strings.ReplaceAll(feed.Image.URL, "http://", "https://")
+			}
+
 			feed.Link = strings.ReplaceAll(feed.Link, "http://", "https://")
 		}
 	}
@@ -270,6 +297,7 @@ func PrivateKeyFromFeed(url string, secret string) string {
 func DeleteInvalidFeed(url string, db *sql.DB) {
 	if _, err := db.Exec(`DELETE FROM feeds WHERE url=?`, url); err != nil {
 		log.Printf("[ERROR] failure to delete invalid feed: %v", err)
+		metrics.AppErrors.With(prometheus.Labels{"type": "SQL_WRITE"}).Inc()
 	} else {
 		log.Printf("[DEBUG] deleted invalid feed with url %q", url)
 	}

@@ -4,6 +4,8 @@ import (
 	"context"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip42"
+	"github.com/piraces/rsslay/pkg/metrics"
+	"github.com/prometheus/client_golang/prometheus"
 	"log"
 	"sort"
 	"sync"
@@ -61,6 +63,14 @@ func ReplayEventsToRelays(parameters *ReplayParameters) {
 					relay = connectToRelay(url)
 				}
 				publishStatus, err := relay.Publish(context.Background(), ev.Event)
+				switch publishStatus {
+				case nostr.PublishStatusSent:
+					metrics.ReplayEvents.With(prometheus.Labels{"relay": url}).Inc()
+					break
+				default:
+					metrics.ReplayErrorEvents.With(prometheus.Labels{"relay": url}).Inc()
+					break
+				}
 				_ = relay.Close()
 				if err != nil {
 					log.Printf("[INFO] Failed to replay event to %s with error: %v", url, err)
@@ -77,6 +87,7 @@ func ReplayEventsToRelays(parameters *ReplayParameters) {
 		}
 		time.Sleep(time.Duration(parameters.WaitTime) * time.Millisecond)
 		*parameters.Queue--
+		metrics.ReplayRoutineQueueLength.Set(float64(*parameters.Queue))
 		parameters.Mutex.Unlock()
 	}()
 }
@@ -100,6 +111,7 @@ func tryAuth(relay *nostr.Relay, challenge string, url string, waitTime int64, e
 	err := event.Sign(ev.PrivateKey)
 	if err != nil {
 		log.Printf("[ERROR] Failed to sign event while trying to authenticate. PubKey: %s\n", ev.Event.PubKey)
+		metrics.AppErrors.With(prometheus.Labels{"type": "REPLAY_AUTH"}).Inc()
 		return false
 	}
 
@@ -112,6 +124,7 @@ func tryAuth(relay *nostr.Relay, challenge string, url string, waitTime int64, e
 	authStatus, err := relay.Auth(ctx, event)
 	if err != nil {
 		log.Printf("[ERROR] Failed while trying to authenticate after sending AUTH event. Error: %v\n", err)
+		metrics.AppErrors.With(prometheus.Labels{"type": "REPLAY_AUTH"}).Inc()
 		return false
 	}
 
@@ -126,6 +139,7 @@ func connectToRelay(url string) *nostr.Relay {
 	relay, e := nostr.RelayConnect(context.Background(), url)
 	if e != nil {
 		log.Printf("[ERROR] Error while trying to connect with relay '%s': %v", url, e)
+		metrics.AppErrors.With(prometheus.Labels{"type": "REPLAY_CONNECT"}).Inc()
 		return nil
 	}
 

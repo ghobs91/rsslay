@@ -9,7 +9,9 @@ import (
 	"github.com/nbd-wtf/go-nostr/nip19"
 	"github.com/piraces/rsslay/pkg/feed"
 	"github.com/piraces/rsslay/pkg/helpers"
+	"github.com/piraces/rsslay/pkg/metrics"
 	"github.com/piraces/rsslay/web/templates"
+	"github.com/prometheus/client_golang/prometheus"
 	"html/template"
 	"log"
 	"net/http"
@@ -43,6 +45,7 @@ func HandleWebpage(w http.ResponseWriter, r *http.Request, db *sql.DB, mainDomai
 		return
 	}
 
+	metrics.IndexRequests.Inc()
 	var count uint64
 	row := db.QueryRow(`SELECT count(*) FROM feeds`)
 	err := row.Scan(&count)
@@ -62,6 +65,7 @@ func HandleWebpage(w http.ResponseWriter, r *http.Request, db *sql.DB, mainDomai
 		var entry Entry
 		if err := rows.Scan(&entry.PubKey, &entry.Url); err != nil {
 			log.Printf("[ERROR] failed to scan row iterating feeds: %v", err)
+			metrics.AppErrors.With(prometheus.Labels{"type": "SQL_SCAN"}).Inc()
 			continue
 		}
 
@@ -88,6 +92,7 @@ func HandleSearch(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 		return
 	}
 
+	metrics.SearchRequests.Inc()
 	query := r.URL.Query().Get("query")
 	if query == "" || len(query) <= 4 {
 		http.Error(w, "Please enter more than 5 characters to search", 400)
@@ -113,6 +118,7 @@ func HandleSearch(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 		var entry Entry
 		if err := rows.Scan(&entry.PubKey, &entry.Url); err != nil {
 			log.Printf("[ERROR] failed to scan row iterating feeds searching: %v", err)
+			metrics.AppErrors.With(prometheus.Labels{"type": "SQL_SCAN"}).Inc()
 			continue
 		}
 
@@ -139,6 +145,7 @@ func HandleCreateFeed(w http.ResponseWriter, r *http.Request, db *sql.DB, secret
 		return
 	}
 
+	metrics.CreateRequests.Inc()
 	entry := createFeedEntry(r, db, secret)
 	_ = t.ExecuteTemplate(w, "created.html.tmpl", entry)
 }
@@ -152,6 +159,7 @@ func HandleApiFeed(w http.ResponseWriter, r *http.Request, db *sql.DB, secret *s
 }
 
 func HandleNip05(w http.ResponseWriter, r *http.Request, db *sql.DB, ownerPubKey *string, enableAutoRegistration *bool) {
+	metrics.WellKnownRequests.Inc()
 	name := r.URL.Query().Get("name")
 	name, _ = url.QueryUnescape(name)
 	w.Header().Set("Content-Type", "application/json")
@@ -188,6 +196,7 @@ func handleCreateFeedEntry(w http.ResponseWriter, r *http.Request, db *sql.DB, s
 		return
 	}
 
+	metrics.CreateRequestsAPI.Inc()
 	entry := createFeedEntry(r, db, secret)
 	w.Header().Set("Content-Type", "application/json")
 
@@ -286,10 +295,12 @@ func insertFeed(err error, feedUrl string, publicKey string, sk string, nitter b
 		log.Printf("[DEBUG] not found feed at url %q as publicKey %s", feedUrl, publicKey)
 		if _, err := db.Exec(`INSERT INTO feeds (publickey, privatekey, url, nitter) VALUES (?, ?, ?, ?)`, publicKey, sk, feedUrl, nitter); err != nil {
 			log.Printf("[ERROR] failure: %v", err)
+			metrics.AppErrors.With(prometheus.Labels{"type": "SQL_WRITE"}).Inc()
 		} else {
 			log.Printf("[DEBUG] saved feed at url %q as publicKey %s", feedUrl, publicKey)
 		}
 	} else if err != nil {
+		metrics.AppErrors.With(prometheus.Labels{"type": "SQL_SCAN"}).Inc()
 		log.Fatalf("[ERROR] failed when trying to retrieve row with pubkey '%s': %v", publicKey, err)
 	} else {
 		log.Printf("[DEBUG] found feed at url %q as publicKey %s", feedUrl, publicKey)

@@ -33,9 +33,8 @@ Checkout the [wiki entry](https://github.com/piraces/rsslay/wiki/API) for furthe
 Actually `rsslay` makes usage of a method named `AttemptReplayEvents` which is made to send the events to other relays of confidence to attempt to make the events and the profile more reachable (they are just mirror relays)...
 
 Currently used relays:
+- wss://nostr.data.haus
 - wss://relay.nostrgraph.net
-- wss://e.nos.lol
-- wss://nos.lol
 - wss://nostr.mom
 - wss://relay.nostr.band
 - wss://nostr.mutinywallet.com
@@ -65,6 +64,18 @@ Running `rsslay` its easy, checkout [the wiki entry for it](https://github.com/p
 If you want to run your own instance, you are covered!
 Several options (including "one-click" ones) are available.
 Checkout [the wiki](https://github.com/piraces/rsslay/wiki/Deploy-your-own-instance).
+
+## Caching
+
+Since version v0.5.1, rsslay uses cache by default (in-memory with [BigCache](https://github.com/allegro/bigcache) by default or with [Redis](https://redis.io/) if configured) enabled by default to improve performance.
+In the case of the main instance `rsslay.nostr.moe`, Redis is used in HA mode to improve performance for multiple requests for the same feed.
+
+**Nevertheless, there is a caveat using this approach that is that cached feeds do not refresh for 30 minutes (but I personally think it is worth for the performance gain).**
+
+## Metrics
+
+Since version v0.5.1, rsslay uses [Prometheus](https://prometheus.io/) instrumenting with metrics exposed on `/metrics` path.
+So with this you can mount your own [Graphana](https://grafana.com/) dashboards and look into rsslay insights!
 
 # Contributing
 
