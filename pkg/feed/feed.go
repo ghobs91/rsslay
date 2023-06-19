@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"regexp"
 )
 
 var (
@@ -243,6 +244,14 @@ func ItemToTextNote(pubkey string, item *gofeed.Item, feed *gofeed.Feed, default
 
 		content = content + "\n\n" + theHashtag
 
+		regex := regexp.MustCompile(`^(?!.*reddit\.com).*$`)
+
+		if (regex != nil) {
+			var postURL = regex.FindString(item.Description)
+			if (postURL != "") {
+				content = content + "\n\n" + postURL
+			}
+		}
 	}
 
 	if strings.Contains(feed.Link, "bluestream.deno.dev") {
