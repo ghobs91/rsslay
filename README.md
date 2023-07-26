@@ -19,7 +19,7 @@
 **Working relay: `wss://rsslay.nostr.moe`. Frontend available in [rsslay.nostr.moe](https://rsslay.nostr.moe).**
 
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template/UDf6vC?referralCode=Zbo_gO)
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/UDf6vC?referralCode=Zbo_gO)
 
 ![Screenshot of main page](screenshot.png)
 
@@ -30,19 +30,11 @@ Checkout the [wiki entry](https://github.com/piraces/rsslay/wiki/API) for furthe
 
 ## Mirroring events ("replaying")
 
+_**Note:** since v0.5.3 its recommended to set `REPLAY_TO_RELAYS` to false. There is no need to perform replays to other relays, the main rsslay should be able to handle the events._
+
 Actually `rsslay` makes usage of a method named `AttemptReplayEvents` which is made to send the events to other relays of confidence to attempt to make the events and the profile more reachable (they are just mirror relays)...
 
-Currently used relays:
-- wss://nostr.data.haus
-- wss://nostr.anchel.nl
-- wss://relay.nostrgraph.net
-- wss://nostr.mom
-- wss://relay.nostr.band
-- wss://nostr.mutinywallet.com
-
-This is needed nowadays, with further improvements in relays implementations or clients it may not be needed in the future.
-
-Maybe in the future with other implementations we can avoid that, but nowadays its needed.
+Currently used relays: none.
 
 ## Feeds from Twitter via Nitter instances
 
@@ -77,6 +69,13 @@ In the case of the main instance `rsslay.nostr.moe`, Redis is used in HA mode to
 
 Since version v0.5.1, rsslay uses [Prometheus](https://prometheus.io/) instrumenting with metrics exposed on `/metrics` path.
 So with this you can mount your own [Graphana](https://grafana.com/) dashboards and look into rsslay insights!
+
+# Related projects
+
+- **atomstr** by [@psic4t](https://github.com/psic4t): atomstr is a RSS/Atom gateway to Nostr. It fetches all sorts of RSS or Atom feeds, generates Nostr profiles for each and posts new entries to given Nostr relay(s). If you have one of these relays in your profile, you can find and subscribe to the feeds.
+  - Source code: https://sr.ht/~psic4t/atomstr/
+  - Demo instance: https://atomstr.data.haus/
+
 
 # Contributing
 
